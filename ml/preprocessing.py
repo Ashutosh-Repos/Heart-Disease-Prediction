@@ -12,12 +12,12 @@ def build_preprocessor(numeric_features: List[str], categorical_features: List[s
     Categorical -> most_frequent imputer + OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     """
     numeric_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
+        ('imputer', SimpleImputer(strategy='median', add_indicator=True)),
         ('scaler', StandardScaler())
     ])
 
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('imputer', SimpleImputer(strategy='most_frequent', add_indicator=True)),
         ('onehot', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
     ])
 

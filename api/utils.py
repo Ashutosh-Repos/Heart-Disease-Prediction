@@ -90,12 +90,14 @@ def aggregate_contributions(contrib_dict, top_k=8):
     agg = defaultdict(float)
     for k, v in contrib_dict.items():
         if k.startswith("num__"):
-            orig = k.replace("num__", "")
+            name = k.replace("num__", "")
+            orig = name.replace("missing_indicator_", "")
         elif k.startswith("cat__"):
             m = re.match(r"cat__([^_]+)_.*", k)
-            orig = m.group(1) if m else k
+            name = m.group(1) if m else k
+            orig = name.replace("missing_indicator_", "")
         else:
-            orig = k
+            orig = k.replace("missing_indicator_", "")
         agg[orig] += float(v)
     sorted_list = sorted(agg.items(), key=lambda kv: abs(kv[1]), reverse=True)
     top = sorted_list[:top_k]

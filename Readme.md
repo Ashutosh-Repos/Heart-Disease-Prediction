@@ -127,6 +127,13 @@ python -m ml.train \
  --cv 10 \
  --output-dir models
 
+python -m ml.train \
+ --data-path data/heart.csv \
+ --target target \
+ --id-column patientid \
+ --cv 10 \
+ --output-dir models
+
 ```
 
 # Outputs:
@@ -134,7 +141,7 @@ python -m ml.train \
 - **best_model_pipeline.joblib**: Final trained pipeline (used by API).
 - **cv_report.json**: Mean cross-validation metrics across all models.
 - **fold_metrics.json**: Granular per-fold results (Precision, Accuracy, Recall per fold).
-- **comparison_plots/**: 
+- **comparison_plots/**:
   - `metric_comparison_bar.png`: All-model overview.
   - `fold_variation_boxplot.png`: Model stability comparison.
   - `fold_details_<model>.png`: Line graphs showing metric trends across folds.
@@ -152,6 +159,15 @@ python -m ml.evaluate \
   --test-size 0.2 \
   --random-state 42 \
   --output-dir models/eval_results
+
+python -m ml.evaluate \
+  --data-path data/heart.csv \
+  --model-path models/best_model_pipeline.joblib \
+  --target target \
+  --id-column patientid \
+  --test-size 0.2 \
+  --random-state 42 \
+  --output-dir models/eval_results
 ```
 
 # Interpret (Generate SHAP Explanations)
@@ -162,6 +178,15 @@ SHAP (SHapley Additive exPlanations) explains individual predictions by computin
 python -m ml.interpret \
   --model-path models/best_model_pipeline.joblib \
   --data-path data/Cardiovascular_Disease_Dataset.csv \
+  --target target \
+  --id-column patientid \
+  --output-dir models/explain \
+  --max-background 200 \
+  --n-samples 50
+
+python -m ml.interpret \
+  --model-path models/best_model_pipeline.joblib \
+  --data-path data/heart.csv \
   --target target \
   --id-column patientid \
   --output-dir models/explain \

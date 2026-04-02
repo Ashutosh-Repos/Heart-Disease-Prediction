@@ -34,6 +34,14 @@ def main(args):
     X = df.drop(columns=[args.target])
     y = df[args.target]
 
+    # Log missing data stats
+    missing_stats = X.isnull().mean() * 100
+    print("\n[Data Quality] Missing Value Percentages:")
+    for col, val in missing_stats.items():
+        if val > 0:
+            print(f"  - {col}: {val:.2f}%")
+    print("-" * 30)
+
     numeric_feats, categorical_feats = infer_feature_groups(list(X.columns), numeric_hints=args.numeric_hints)
     # If infer messed up and some truly numeric columns are in categorical, you can override by CLI hints.
 
