@@ -375,19 +375,18 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="../models/best_model_pipeline.joblib")
-    parser.add_argument("--data-path", type=str, default="../data/Cardiovascular_Disease_Dataset.csv")
+    parser.add_argument("--model-path", type=str, default="models/best_model_pipeline.joblib")
+    parser.add_argument("--data-path", type=str, default="data/UCI_Heart_Disease_Combined.csv")
     parser.add_argument("--target", type=str, default="target")
     parser.add_argument("--id-column", type=str, default="patientid")
-    parser.add_argument("--output-dir", type=str, default="../models/explain")
-    parser.add_argument("--max-background", type=int, default=200,
+    parser.add_argument("--output-dir", type=str, default="models/explain")
+    parser.add_argument("--max-background", type=int, default=500,
                         help="Max background samples for KernelExplainer (lower -> faster but less accurate)")
     parser.add_argument("--n-samples", type=int, default=20,
                         help="Number of samples to compute per-sample explanations for (if not provided, top uncertain samples chosen)")
     parser.add_argument("--nsamples_per_call", type=int, default=100,
                         help="KernelExplainer nsamples (if using KernelExplainer)")
-    parser.add_argument("--n-samples-top", dest="n_samples", type=int, default=20)
-    parser.add_argument("--topk-features", type=int, default=20)
+    parser.add_argument("--topk-features", type=int, default=14)
     parser.add_argument("--sample-indices", nargs="*", type=int, default=None,
                         help="Specific sample indices (0-based) to explain. If omitted, small set of uncertain samples will be selected.")
     parser.add_argument("--random-state", type=int, default=42)

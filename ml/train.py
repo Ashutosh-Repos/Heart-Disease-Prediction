@@ -15,6 +15,11 @@ from ml.model_config import get_models
 from ml.utils import run_cv, save_pipeline, save_json
 from ml.visualize_metrics import generate_all_plots, generate_model_detail_plots
 
+# SMOTE support
+from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.over_sampling import SMOTE
+import ml.hyperparam_search as hyperparam_search
+
 import warnings
 warnings.filterwarnings("ignore", message=".*X does not have valid feature names.*")
 
@@ -42,20 +47,72 @@ def main(args):
             print(f"  - {col}: {val:.2f}%")
     print("-" * 30)
 
-    numeric_feats, categorical_feats = infer_feature_groups(list(X.columns), numeric_hints=args.numeric_hints)
-    # If infer messed up and some truly numeric columns are in categorical, you can override by CLI hints.
+    # Explicit clinical feature grouping for the 14-column project schema
+    numeric_features = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
+    categorical_features = [
+        'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
+        'exerciseangia', 'slope', 'noofmajorvessels'
+    ]
 
-    print("Numeric features:", numeric_feats)
-    print("Categorical features:", categorical_feats)
+    # fallback/validation: ensure all dropped-df columns are accounted for
+    all_cols = X.columns.tolist()
+    # verify if any are missing from our explicit lists
+    known = set(numeric_features + categorical_features)
+    for c in all_cols:
+        if c not in known:
+            # if we have extra columns, let the old guessing logic handle them or default to categorical
+            if any(k in c.lower() for k in ['age', 'bp', 'press', 'rate', 'max', 'peak', 'chol', 'sugar']):
+                numeric_features.append(c)
+            else:
+                categorical_features.append(c)
 
-    preprocessor = build_preprocessor(numeric_feats, categorical_feats)
-    models = get_models(random_state=args.random_state)
+    preprocessor = build_preprocessor(numeric_features, categorical_features)
 
+    print("Numeric features:", numeric_features)
+    print("Categorical features:", categorical_features)
+    
     # 80/20 split for generating detailed plots (CM, ROC, PR) for all models
     X_train_eval, X_test_eval, y_train_eval, y_test_eval = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=args.random_state
     )
 
+    # Prepare models
+    models = get_models(random_state=args.random_state)
+
+    if args.tune:
+        print("\n[Optimizer] Starting Deep Hyperparameter Search with SMOTE exploration...")
+        # Redirect specialized args for the search module
+        search_args = argparse.Namespace(
+            data_path=args.data_path,
+            target=args.target,
+            id_column=args.id_column,
+            output_dir=args.output_dir,
+            n_iter=args.tune_iter,
+            cv=args.cv,
+            n_jobs=args.n_jobs,
+            top_k=1,
+            random_state=args.random_state
+        )
+        hyperparam_search.main(search_args)
+        print("[Optimizer] Search complete. Loading winners into pipeline...")
+        
+        # Load tuned parameters into the models dictionary
+        hyperopt_dir = Path(args.output_dir) / "hyperopt"
+        for name in models.keys():
+            summary_json = hyperopt_dir / name / "summary.json"
+            if summary_json.exists():
+                import json
+                with open(summary_json, 'r') as f:
+                    summary = json.load(f)
+                best_params = summary.get("best_params", {})
+                if best_params:
+                    print(f"  - {name}: Applying optimized params: {best_params}")
+                    # Remove 'smote' from params as it's a pipeline step, not a clf param
+                    clf_params = {k: v for k, v in best_params.items() if k != "smote"}
+                    models[name].set_params(**clf_params)
+                    # If this specific model won with SMOTE, we can force it for this model
+                    # but for simplicity in this loop we'll follow the --use-smote or tune-specific logic
+    
     cv_results = {}
     fold_metrics = {}
     pipelines = {}
@@ -64,7 +121,14 @@ def main(args):
 
     for name, clf in models.items():
         print(f"\nRunning CV for: {name}")
-        pipeline = Pipeline(steps=[('preprocessor', preprocessor), ('clf', clf)])
+        # Use ImbPipeline and apply SMOTE if requested
+        steps = [('preprocessor', preprocessor)]
+        if args.use_smote:
+            print(f"  - Applying SMOTE balancing to {name}...")
+            steps.append(('smote', SMOTE(random_state=args.random_state)))
+        steps.append(('clf', clf))
+        
+        pipeline = ImbPipeline(steps=steps)
         scoring = ['roc_auc', 'accuracy', 'precision', 'recall', 'f1']
         summary, full_cv = run_cv(pipeline, X, y, cv=args.cv, scoring=scoring, n_jobs=args.n_jobs)
         cv_results[name] = summary
@@ -106,8 +170,9 @@ def main(args):
     cv_report_path = output_dir / "cv_report.json"
     fold_metrics_path = output_dir / "fold_metrics.json"
     
-    save_json(cv_results, cv_report_path)
-    save_json(fold_metrics, fold_metrics_path)
+    from ml.utils import sanitize_for_json
+    save_json(sanitize_for_json(cv_results), cv_report_path)
+    save_json(sanitize_for_json(fold_metrics), fold_metrics_path)
     print(f"Saved cv_report.json and fold_metrics.json")
 
     # [NEW] Generate visualizations automatically
@@ -132,8 +197,11 @@ if __name__ == "__main__":
     parser.add_argument("--numeric-hints", type=list, default=None, help="Optional list of numeric column name hints")
     parser.add_argument("--output-dir", type=str, default="../models")
     parser.add_argument("--output-filename", type=str, default="best_model_pipeline.joblib")
-    parser.add_argument("--cv", type=int, default=5)
+    parser.add_argument("--cv", type=int, default=10, help="CV folds")
     parser.add_argument("--random-state", type=int, default=42)
     parser.add_argument("--n-jobs", type=int, default=-1)
+    parser.add_argument("--use-smote", action="store_true", help="Apply SMOTE balancing in standard training")
+    parser.add_argument("--tune", action="store_true", help="Run deep hyperparameter tuning search")
+    parser.add_argument("--tune-iter", type=int, default=50, help="Number of search iterations if --tune is used")
     args = parser.parse_args()
     main(args)

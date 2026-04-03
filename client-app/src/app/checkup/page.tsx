@@ -41,7 +41,7 @@ ChartJS.register(
 const schema = z.object({
   age: z.number().min(1).max(120),
   gender: z.enum(["M", "F"]),
-  chestpain: z.number().int().min(0).max(3),
+  chestpain: z.number().int().min(1).max(4),
   restingBP: z.number().min(30).max(300),
   serumcholestrol: z.number().min(50).max(1000),
   fastingbloodsugar: z.number().int().min(0).max(1),
@@ -49,23 +49,22 @@ const schema = z.object({
   maxheartrate: z.number().min(30).max(300),
   exerciseangia: z.number().int().min(0).max(1),
   oldpeak: z.number().min(0).max(20),
-  slope: z.number().int().min(0).max(3),
+  slope: z.number().int().min(1).max(3),
   noofmajorvessels: z.number().int().min(0).max(3),
 });
 type FormSchema = z.infer<typeof schema>;
 
 const chestpainOptions = [
-  { label: "Typical angina", value: 0 },
-  { label: "Atypical angina", value: 1 },
-  { label: "Non-anginal pain", value: 2 },
-  { label: "Asymptomatic", value: 3 },
+  { label: "Typical angina", value: 1 },
+  { label: "Atypical angina", value: 2 },
+  { label: "Non-anginal pain", value: 3 },
+  { label: "Asymptomatic", value: 4 },
 ];
 
 const slopeOptions = [
-  { label: "Upsloping", value: 0 },
-  { label: "Flat", value: 1 },
-  { label: "Downsloping", value: 2 },
-  { label: "Unknown/Other", value: 3 },
+  { label: "Upsloping", value: 1 },
+  { label: "Flat", value: 2 },
+  { label: "Downsloping", value: 3 },
 ];
 
 /* ---------------------------
@@ -74,7 +73,7 @@ const slopeOptions = [
 const DEFAULT_PAYLOAD: FormSchema = {
   age: 54,
   gender: "M",
-  chestpain: 2,
+  chestpain: 3,
   restingBP: 140,
   serumcholestrol: 240,
   fastingbloodsugar: 0,

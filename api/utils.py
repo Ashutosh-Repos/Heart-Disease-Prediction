@@ -24,7 +24,25 @@ def load_pipeline_and_metadata(path: Path):
         pre = pipeline.named_steps.get("preprocessor", None)
         if pre is not None:
             try:
-                # scikit-learn >=1.0 supports get_feature_names_out on ColumnTransformer
+                # Explicit clinical feature grouping for the 14-column project schema
+                numeric_feats = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
+                categorical_feats = [
+                    'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
+                    'exerciseangia', 'slope', 'noofmajorvessels'
+                ]
+                
+                # ensure any remaining columns in X are accounted for
+                all_cols = X.columns.tolist()
+                known = set(numeric_feats + categorical_feats)
+                for c in all_cols:
+                    if c not in known:
+                        # simple heuristic for additional columns
+                        if any(k in c.lower() for k in ['age', 'bp', 'press', 'rate', 'max', 'peak', 'chol', 'sugar']):
+                            numeric_feats.append(c)
+                        else:
+                            categorical_feats.append(c)
+
+                preprocessor = build_preprocessor(numeric_feats, categorical_feats)
                 transformed = pre.get_feature_names_out()
                 metadata["transformed_feature_names"] = list(transformed)
             except Exception:
@@ -83,22 +101,26 @@ def aggregate_contributions(contrib_dict, top_k=8):
     """
     Aggregate transformed contribution names to original features.
     Input: contrib_dict: {'num__age': 0.05, 'cat__chestpain_2': 0.7, ...}
-    Returns:
-      - agg_dict: {orig_feature: total_contribution}
-      - top_list: list of (orig_feature, contribution) sorted by abs desc (length top_k)
+    Handles 'missing_indicator_' prefix in both num and cat transformers.
     """
     agg = defaultdict(float)
     for k, v in contrib_dict.items():
+        # 1. Strip transformer prefix
+        name = k
         if k.startswith("num__"):
             name = k.replace("num__", "")
-            orig = name.replace("missing_indicator_", "")
         elif k.startswith("cat__"):
-            m = re.match(r"cat__([^_]+)_.*", k)
-            name = m.group(1) if m else k
-            orig = name.replace("missing_indicator_", "")
-        else:
-            orig = k.replace("missing_indicator_", "")
+            name = k.replace("cat__", "")
+            # for cat features, strip the OHE tail (e.g. '_1.0') if not 'missing_indicator'
+            if "missing_indicator_" not in name:
+                m = re.match(r"(.*)_[^_]+$", name)
+                if m:
+                    name = m.group(1)
+
+        # 2. Strip missing indicator prefix and aggregate
+        orig = name.replace("missing_indicator_", "")
         agg[orig] += float(v)
+
     sorted_list = sorted(agg.items(), key=lambda kv: abs(kv[1]), reverse=True)
     top = sorted_list[:top_k]
     return dict(agg), top

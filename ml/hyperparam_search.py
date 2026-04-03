@@ -25,8 +25,10 @@ import pandas as pd
 import joblib
 import time
 import warnings
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold, train_test_split
+# imblearn for SMOTE support in Pipeline
+from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 from scipy.stats import randint, uniform, loguniform
 from ml.preprocessing import build_preprocessor, infer_feature_groups
 import ml.model_config as model_config
@@ -41,42 +43,48 @@ RND = 42
 def default_param_spaces():
     """
     Return a dict mapping model_key -> param_distributions for RandomizedSearchCV.
-    These are intentionally compact but meaningful.
+    These are expanded to find better clinical boundaries.
+    Includes SMOTE toggle for experiment.
     """
     spaces = {
         "xgboost": {
-            # param names are for 'clf__<param>' when used in pipeline
-            "clf__n_estimators": randint(50, 500),
-            "clf__max_depth": randint(3, 12),
-            "clf__learning_rate": uniform(0.01, 0.4),
-            "clf__subsample": uniform(0.6, 0.4),
-            "clf__colsample_bytree": uniform(0.5, 0.5),
-            "clf__reg_alpha": uniform(0.0, 1.0),
-            "clf__reg_lambda": uniform(0.0, 1.0),
+            "smote": [None, SMOTE(random_state=RND)], # Toggle SMOTE
+            "clf__n_estimators": randint(100, 700),
+            "clf__max_depth": randint(3, 15),
+            "clf__learning_rate": uniform(0.005, 0.3),
+            "clf__subsample": uniform(0.5, 0.5),
+            "clf__colsample_bytree": uniform(0.4, 0.6),
+            "clf__gamma": uniform(0, 5),
+            "clf__reg_alpha": loguniform(1e-3, 10.0),
+            "clf__reg_lambda": loguniform(1e-3, 10.0),
         },
         "lightgbm": {
-            "clf__n_estimators": randint(50, 500),
-            "clf__num_leaves": randint(16, 128),
-            "clf__learning_rate": uniform(0.01, 0.4),
-            "clf__subsample": uniform(0.6, 0.4),
-            "clf__colsample_bytree": uniform(0.5, 0.5),
-            "clf__reg_alpha": uniform(0.0, 1.0),
-            "clf__reg_lambda": uniform(0.0, 1.0),
+            "smote": [None, SMOTE(random_state=RND)],
+            "clf__n_estimators": randint(100, 700),
+            "clf__num_leaves": randint(20, 200),
+            "clf__max_depth": randint(-1, 15),
+            "clf__learning_rate": uniform(0.005, 0.3),
+            "clf__feature_fraction": uniform(0.4, 0.6),
+            "clf__bagging_fraction": uniform(0.4, 0.6),
+            "clf__min_child_samples": randint(5, 50),
         },
         "catboost": {
-            # CatBoost's sklearn wrapper uses same param names
-            "clf__iterations": randint(50, 500),
-            "clf__depth": randint(3, 10),
-            "clf__learning_rate": uniform(0.01, 0.4),
-            "clf__l2_leaf_reg": uniform(1, 10),
-            "clf__border_count": randint(32, 255),
+            "smote": [None, SMOTE(random_state=RND)],
+            "clf__iterations": randint(200, 800),
+            "clf__depth": randint(4, 10),
+            "clf__learning_rate": uniform(0.01, 0.2),
+            "clf__l2_leaf_reg": uniform(1, 20),
+            "clf__random_strength": uniform(0, 10),
+            "clf__bagging_temperature": uniform(0, 1),
         },
         "random_forest": {
-            "clf__n_estimators": randint(50, 500),
-            "clf__max_depth": randint(3, 30),
-            "clf__min_samples_split": randint(2, 10),
-            "clf__min_samples_leaf": randint(1, 6),
+            "smote": [None, SMOTE(random_state=RND)],
+            "clf__n_estimators": randint(100, 800),
+            "clf__max_depth": randint(5, 40),
+            "clf__min_samples_split": randint(2, 20),
+            "clf__min_samples_leaf": randint(1, 10),
             "clf__max_features": ["sqrt", "log2", None],
+            "clf__bootstrap": [True, False]
         }
     }
     return spaces
@@ -106,24 +114,19 @@ def run_search_for_model(model_name, pipeline, param_dist, X, y, n_iter=30, cv=4
     return rs
 
 
+from ml.utils import save_json, sanitize_for_json
+
 def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int = 1):
     """
     Save best pipeline (refit) and top_k candidate pipelines (refit on full X/y).
     - rs is fitted RandomizedSearchCV with refit=True (it will already have best_estimator_ refit on full)
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    # Save full cv_results (json-serializable conversion)
+    # Save full cv_results
     cvres = rs.cv_results_.copy()
-    # Convert numpy arrays to lists
-    cvres_s = {}
-    for k, v in cvres.items():
-        try:
-            cvres_s[k] = v.tolist() if hasattr(v, "tolist") else v
-        except Exception:
-            cvres_s[k] = str(v)
-    save_json(cvres_s, output_dir / "cv_results.json")
+    save_json(sanitize_for_json(cvres), output_dir / "cv_results.json")
 
-    # Save best estimator pipeline (rs.best_estimator_ is already refit on full X when refit=True)
+    # Save best estimator pipeline
     best_pipeline = rs.best_estimator_
     joblib.dump(best_pipeline, output_dir / "best_pipeline.joblib")
 
@@ -133,11 +136,12 @@ def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int
     summary = []
     for i in range(top_k):
         idx = ranks[i]
+        params = cvres["params"][idx]
         entry = {
             "rank": int(cvres["rank_test_score"][idx]),
             "mean_test_score": float(cvres["mean_test_score"][idx]),
             "std_test_score": float(cvres["std_test_score"][idx]),
-            "params": {k.replace("clf__", ""): (v[idx].item() if hasattr(v[idx], "item") else (v[idx] if not isinstance(v[idx], (list, np.ndarray)) else v[idx].tolist())) for k, v in cvres.items() if k.startswith("params")}
+            "params": sanitize_for_json(params)
         }
         summary.append(entry)
 
@@ -175,7 +179,23 @@ def main(args):
     X = df.drop(columns=[args.target])
     y = df[args.target]
 
-    numeric_feats, categorical_feats = infer_feature_groups(list(X.columns), numeric_hints=None)
+    # Explicit clinical feature grouping for the 14-column project schema
+    numeric_feats = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
+    categorical_feats = [
+        'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
+        'exerciseangia', 'slope', 'noofmajorvessels'
+    ]
+    
+    # ensure any remaining columns in X are accounted for
+    all_cols = X.columns.tolist()
+    known = set(numeric_feats + categorical_feats)
+    for c in all_cols:
+        if c not in known:
+            if any(k in c.lower() for k in ['age', 'bp', 'press', 'rate', 'max', 'peak', 'chol', 'sugar']):
+                numeric_feats.append(c)
+            else:
+                categorical_feats.append(c)
+
     preprocessor = build_preprocessor(numeric_feats, categorical_feats)
 
     # Prepare models from model_config (we'll only tune a subset)
@@ -198,7 +218,12 @@ def main(args):
             except Exception:
                 pass
 
-        pipeline = Pipeline(steps=[("preprocessor", preprocessor), ("clf", clf)])
+        # Use imblearn Pipeline to support SMOTE as a step
+        pipeline = ImbPipeline(steps=[
+            ("preprocessor", preprocessor), 
+            ("smote", SMOTE(random_state=args.random_state)), # Placeholder, will be toggled
+            ("clf", clf)
+        ])
         ps = param_spaces.get(key, {})
         if len(ps) == 0:
             print(f"No param space for {key}, skipping search.")
@@ -227,7 +252,7 @@ if __name__ == "__main__":
     parser.add_argument("--id-column", type=str, default="patientid")
     parser.add_argument("--output-dir", type=str, default="../models")
     parser.add_argument("--n-iter", type=int, default=30, help="RandomizedSearchCV n_iter")
-    parser.add_argument("--cv", type=int, default=4, help="CV folds")
+    parser.add_argument("--cv", type=int, default=10, help="CV folds")
     parser.add_argument("--n-jobs", type=int, default=-1)
     parser.add_argument("--top-k", type=int, default=3, help="Save top-k refit models")
     parser.add_argument("--random-state", type=int, default=42)

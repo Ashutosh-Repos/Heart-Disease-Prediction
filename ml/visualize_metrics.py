@@ -324,7 +324,7 @@ if __name__ == "__main__":
     parser.add_argument("--cv-report", type=str, default="models/cv_report.json")
     parser.add_argument("--hyperopt-dir", type=str, default="models/hyperopt")
     parser.add_argument("--output-dir", type=str, default="models/comparison_plots")
-    parser.add_argument("--fold-metrics", type=str, default=None)
+    parser.add_argument("--fold-metrics", type=str, default="models/fold_metrics.json")
     
     args = parser.parse_args()
     generate_all_plots(args.cv_report, args.hyperopt_dir, args.output_dir, fold_json=args.fold_metrics)

@@ -26,7 +26,7 @@ def load_pipeline(path: str):
     else:
         return data, {}
 
-def run_cv(pipeline, X, y, cv=5, scoring=None, n_jobs=-1):
+def run_cv(pipeline, X, y, cv=10, scoring=None, n_jobs=-1):
     if scoring is None:
         scoring = ['roc_auc', 'accuracy', 'precision', 'recall', 'f1']
     cv_res = cross_validate(pipeline, X, y,
@@ -38,13 +38,43 @@ def run_cv(pipeline, X, y, cv=5, scoring=None, n_jobs=-1):
     return summary, cv_res
 
 def save_json(obj, path):
+    """Save an object to JSON, handling non-serializable ML objects gracefully."""
+    def default_serializer(o):
+        if hasattr(o, "__class__") and "SMOTE" in str(o.__class__):
+            return "SMOTE"
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        if isinstance(o, (np.int64, np.int32, np.float64, np.float32)):
+            return o.item()
+        return str(o)
+
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(p, 'w') as f:
-        json.dump(obj, f, indent=2)
+        json.dump(obj, f, indent=2, default=default_serializer)
 
 def load_csv(path, drop_cols=None):
     df = pd.read_csv(path)
     if drop_cols:
         df = df.drop(columns=[c for c in drop_cols if c in df.columns])
     return df
+def sanitize_for_json(obj):
+    """Recursively convert non-serializable objects (SMOTE, NumPy arrays) for JSON."""
+    if isinstance(obj, dict):
+        return {str(k): sanitize_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.int64, np.int32, np.int16)):
+        return int(obj)
+    elif isinstance(obj, (np.float64, np.float32)):
+        return float(obj)
+    elif hasattr(obj, "__class__") and "SMOTE" in str(obj.__class__):
+        return "SMOTE"
+    elif obj is None:
+        return None
+    elif isinstance(obj, (int, float, str, bool)):
+        return obj
+    else:
+        return str(obj)
