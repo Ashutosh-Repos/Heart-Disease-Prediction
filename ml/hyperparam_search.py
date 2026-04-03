@@ -126,11 +126,20 @@ def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int
     cvres = rs.cv_results_.copy()
     save_json(sanitize_for_json(cvres), output_dir / "cv_results.json")
 
-    # Save best estimator pipeline
-    best_pipeline = rs.best_estimator_
-    joblib.dump(best_pipeline, output_dir / "best_pipeline.joblib")
-
-    # Save metadata summary (top_k by rank)
+    # Save the best pipeline and its metadata
+    metadata = {
+        "model_name": args.model if args and hasattr(args, 'model') else "unknown",
+        "features": list(X.columns),
+        "numeric_features": numeric_feats,
+        "categorical_features": categorical_feats,
+        "best_params": rs.best_params_,
+        "best_cv_score": rs.best_score_,
+        "clinical_standard": "UCI-1-indexed"
+    }
+    
+    from ml.utils import save_pipeline
+    out_path = save_pipeline(rs.best_estimator_, str(output_dir), filename="best_tuned_pipeline.joblib", metadata=metadata)
+    print(f"Saved best tuned pipeline to: {out_path}")
     ranks = np.argsort(cvres["rank_test_score"])
     top_k = min(top_k, len(ranks))
     summary = []
@@ -179,12 +188,10 @@ def main(args):
     X = df.drop(columns=[args.target])
     y = df[args.target]
 
-    # Explicit clinical feature grouping for the 14-column project schema
-    numeric_feats = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
-    categorical_feats = [
-        'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
-        'exerciseangia', 'slope', 'noofmajorvessels'
-    ]
+    # 1. Use Centralized Research Schema
+    from ml.schema import NUMERIC_FEATURES, CATEGORICAL_FEATURES, TARGET_COLUMN
+    numeric_feats = NUMERIC_FEATURES
+    categorical_feats = CATEGORICAL_FEATURES
     
     # ensure any remaining columns in X are accounted for
     all_cols = X.columns.tolist()

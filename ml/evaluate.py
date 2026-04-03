@@ -135,10 +135,11 @@ def main(args):
     plot_roc(y_test, probs, outpath=out_dir / "roc_curve.png")
     plot_pr(y_test, probs, outpath=out_dir / "pr_curve.png")
 
-    # compute feature importances (uses metadata['features'] if saved)
+    # compute feature importances (uses injected metadata preferentially)
     feature_names = metadata.get('features', list(X.columns))
+    importances_feats = metadata.get('transformed_feature_names', feature_names)
     try:
-        fi_df = compute_feature_importances(pipeline, X_test, y_test, out_dir, feature_names)
+        fi_df = compute_feature_importances(pipeline, X_test, y_test, out_dir, importances_feats)
     except Exception as e:
         print("Failed to compute feature importances:", e)
         fi_df = None

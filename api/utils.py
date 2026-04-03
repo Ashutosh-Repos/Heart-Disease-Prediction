@@ -19,36 +19,24 @@ def load_pipeline_and_metadata(path: Path):
     else:
         pipeline = data
         metadata = {}
+
     # Try to derive transformed feature names and store in metadata if possible
     try:
-        pre = pipeline.named_steps.get("preprocessor", None)
-        if pre is not None:
-            try:
-                # Explicit clinical feature grouping for the 14-column project schema
-                numeric_feats = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
-                categorical_feats = [
-                    'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
-                    'exerciseangia', 'slope', 'noofmajorvessels'
-                ]
-                
-                # ensure any remaining columns in X are accounted for
-                all_cols = X.columns.tolist()
-                known = set(numeric_feats + categorical_feats)
-                for c in all_cols:
-                    if c not in known:
-                        # simple heuristic for additional columns
-                        if any(k in c.lower() for k in ['age', 'bp', 'press', 'rate', 'max', 'peak', 'chol', 'sugar']):
-                            numeric_feats.append(c)
-                        else:
-                            categorical_feats.append(c)
+        # 1. Prefer schema from centralized registry
+        from ml.schema import NUMERIC_FEATURES, CATEGORICAL_FEATURES
+        numeric_feats = NUMERIC_FEATURES
+        categorical_feats = CATEGORICAL_FEATURES
+        
+        # 2. Allow metadata to override if present in the model file
+        numeric_feats = metadata.get("numeric_features", numeric_feats)
+        categorical_feats = metadata.get("categorical_features", categorical_feats)
 
-                preprocessor = build_preprocessor(numeric_feats, categorical_feats)
-                transformed = pre.get_feature_names_out()
-                metadata["transformed_feature_names"] = list(transformed)
-            except Exception:
-                # best-effort: leave metadata as-is
-                pass
+        # 3. Build/Configure preprocessor based on these groups
+        from ml.preprocessing import build_preprocessor
+        preprocessor = build_preprocessor(numeric_feats, categorical_feats)
+        metadata["transformed_feature_names"] = list(preprocessor.get_feature_names_out(metadata.get("features", [])))
     except Exception:
+        # best-effort: leave metadata as-is
         pass
     return pipeline, metadata
 

@@ -21,13 +21,12 @@ The system follows a rigorous 6-phase engineering lifecycle with interchangeable
 graph TD
     A1[UCI Global Registry] -->|Ingestion| B[Standardized Clinical Record]
     A2[Cardiovascular Dataset] -->|Ingestion| B
-    A3[Local Heart Registry] -->|Ingestion| B
+    A3[Kaggle / Local Registries] -->|Offset Engine +1| B
     B -->|Preprocessing| C[Missingness Intelligence Loop]
     C -->|Optuna Search| D[Best-Model Selection]
-    D -->|SMOTE-Tuning| E[Production Binary .joblib]
+    D -->|Schema Injection| E[Production Binary .joblib]
     E -->|FastAPI| F[Explainable Backend API]
     F -->|Next.js| G[Physician-Grade Dashboard]
-    G -->|SHAP| H[Diagnostic Verification]
 ```
 
 
@@ -61,6 +60,13 @@ The following 14 clinical attributes are standardized across all project dataset
 | **ST Slope** | `slope` | Slope of ST segment | 1: Upsloping, 2: Flat, 3: Downsloping |
 | **Major Vessels** | `noofmajorvessels` | `ca` (0-3) | Colored by Flourosopy |
 | **Target Status** | `target` | Diagnosis (angiographic) | 0 = Normal, 1 = Risk (>50% narrowing) |
+
+### 🛠️ Important: Clinical Value Standard
+To maintain **Zero-Inconsistency**, this project strictly follows the **UCI 1-Indexed Standard**:
+*   **Chest Pain**: Must be **1, 2, 3, 4** (Typical, Atypical, Non-anginal, Asymptomatic).
+*   **Slope**: Must be **1, 2, 3** (Upsloping, Flat, Downsloping).
+
+If your raw data is 0-indexed (common in Kaggle sets), you **must** run the Kaggle Alignment Engine (Phase 0) before training or prediction.
 
 ### FastAPI Backend
 
@@ -175,9 +181,16 @@ This system prioritizes **Clinical Trust**. Every prediction is accompanied by a
 
 ---
 
-## 🚀 Full-Factor Deployment (CLI Masterclass)
-
 The system is designed for **Medical Peer-Review Replication**. Use the following phases to switch between datasets and verify results.
+
+### 🧩 Phase 0: Kaggle Baseline Alignment
+If you are using a standard Kaggle `heart.csv` (where Chest Pain is 0-3), run this first to shift it into the clinical 1-indexed registry:
+```bash
+python -m ml.standardize_data \
+  --input data/heart.csv \
+  --output data/heart_standardized.csv
+```
+The system automatically detects if an offset is needed.
 
 ### 🏆 Phase A: Clinical Registry Unification
 Build the Gold Standard UCI dataset from 4 global centers.

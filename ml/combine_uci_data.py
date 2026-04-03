@@ -41,7 +41,10 @@ def combine_uci_data(base_dir: str, output_path: str):
     
     # --- Transformation Logic to match project pipeline ---
     
-    # 1. Rename columns to match project schema
+    # 1. Use Centralized Research Schema
+    from ml.schema import NUMERIC_FEATURES, CATEGORICAL_FEATURES, TARGET_COLUMN
+    
+    # Mapping UCI names to pipeline names
     rename_map = {
         'sex': 'gender',
         'cp': 'chestpain',
@@ -60,15 +63,8 @@ def combine_uci_data(base_dir: str, output_path: str):
     print("Converting target labels to binary (0 and 1)...")
     combined_df['target'] = combined_df['target'].apply(lambda x: 1 if x > 0 else 0)
     
-    # 3. Drop non-semantic columns (like 'ca' after rename and 'thal')
-    # and any other columns that don't exist in the project schema
-    # Project schema features: age, gender, chestpain, restingBP, serumcholestrol, 
-    # fastingbloodsugar, restingrelectro, maxheartrate, exerciseangia, oldpeak, slope, noofmajorvessels
-    cols_to_keep = [
-        'age', 'gender', 'chestpain', 'restingBP', 'serumcholestrol', 
-        'fastingbloodsugar', 'restingrelectro', 'maxheartrate', 
-        'exerciseangia', 'oldpeak', 'slope', 'noofmajorvessels', 'target'
-    ]
+    # Project schema features
+    cols_to_keep = NUMERIC_FEATURES + CATEGORICAL_FEATURES + [TARGET_COLUMN]
     
     # Final cleanup
     combined_df = combined_df[cols_to_keep]

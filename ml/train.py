@@ -47,20 +47,17 @@ def main(args):
             print(f"  - {col}: {val:.2f}%")
     print("-" * 30)
 
-    # Explicit clinical feature grouping for the 14-column project schema
-    numeric_features = ['age', 'restingBP', 'serumcholestrol', 'maxheartrate', 'oldpeak']
-    categorical_features = [
-        'gender', 'chestpain', 'fastingbloodsugar', 'restingrelectro', 
-        'exerciseangia', 'slope', 'noofmajorvessels'
-    ]
+    # 1. Use Centralized Research Schema
+    from ml.schema import NUMERIC_FEATURES, CATEGORICAL_FEATURES, TARGET_COLUMN
+    numeric_features = NUMERIC_FEATURES
+    categorical_features = CATEGORICAL_FEATURES
 
-    # fallback/validation: ensure all dropped-df columns are accounted for
+    # 2. Schema Hardening: Account for any unexpected columns in the data
     all_cols = X.columns.tolist()
-    # verify if any are missing from our explicit lists
     known = set(numeric_features + categorical_features)
     for c in all_cols:
         if c not in known:
-            # if we have extra columns, let the old guessing logic handle them or default to categorical
+            # automatic heuristic for extra custom columns
             if any(k in c.lower() for k in ['age', 'bp', 'press', 'rate', 'max', 'peak', 'chol', 'sugar']):
                 numeric_features.append(c)
             else:
@@ -153,13 +150,22 @@ def main(args):
     # Fit best pipeline on full data and save
     best_pipeline = pipelines[best_name]
     print("Fitting best pipeline on full data...")
+    # compute feature importances (uses injected metadata preferentially)
+    feature_names = list(X.columns)
+    try:
+        fi_df = compute_feature_importances(best_pipeline, X_test_eval, y_test_eval, args.output_dir, feature_names)
+    except Exception as e:
+        print(f"Warning: Feature importance calculation failed: {e}")
     best_pipeline.fit(X, y)
 
     metadata = {
         "features": list(X.columns),
+        "numeric_features": numeric_features,
+        "categorical_features": categorical_features,
         "target": args.target,
         "model_name": best_name,
-        "cv_results": cv_results
+        "cv_results": cv_results,
+        "clinical_standard": "UCI-1-indexed"
     }
 
     out_path = save_pipeline(best_pipeline, args.output_dir, filename=args.output_filename, metadata=metadata)
