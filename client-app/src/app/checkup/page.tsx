@@ -106,6 +106,8 @@ export default function PredictPage() {
   const [explainLoading, setExplainLoading] = useState(false);
   const [explainError, setExplainError] = useState<string | null>(null);
   const [explainResult, setExplainResult] = useState<{
+    prediction?: number;
+    probability?: number;
     contributions?: Record<string, number>;
     aggregated?: Record<string, number>;
     top_features?: { feature: string; impact: number }[];
@@ -151,6 +153,8 @@ export default function PredictPage() {
       throw new Error(txt || `HTTP ${res.status}`);
     }
     return (await res.json()) as {
+      prediction: number;
+      probability: number;
       contributions?: Record<string, number>;
       aggregated?: Record<string, number>;
       top_features?: { feature: string; impact: number }[];
@@ -168,33 +172,28 @@ export default function PredictPage() {
     setProbability(null);
 
     try {
-      const p = await callPredict(payload);
-      setPrediction(Number(p.prediction));
-      const prob = Number(p.probability);
+      setExplainLoading(true);
+      const e = await callExplain(payload);
+      
+      // Set prediction and probability from the consolidated /explain response
+      setPrediction(Number(e.prediction));
+      const prob = Number(e.probability);
       setProbability(prob > 1 ? prob : prob * 100);
 
-      try {
-        setExplainLoading(true);
-        const e = await callExplain(payload);
-        setExplainResult({
-          contributions: e.contributions ?? undefined,
-          aggregated: e.aggregated ?? undefined,
-          top_features: e.top_features ?? undefined,
-          base_value: e.base_value ?? null,
-        });
-      } catch (ee: unknown) {
-        console.error("Explain failed", ee);
-        setExplainError("Explain failed");
-      } finally {
-        setExplainLoading(false);
-      }
+      setExplainResult({
+        contributions: e.contributions ?? undefined,
+        aggregated: e.aggregated ?? undefined,
+        top_features: e.top_features ?? undefined,
+        base_value: e.base_value ?? null,
+      });
     } catch (err: unknown) {
-      console.error("Predict failed", err);
+      console.error("Diagnostic analysis failed", err);
       setServerError(
-        String(err instanceof Error ? err.message : "Predict failed")
+        String(err instanceof Error ? err.message : "Diagnostic analysis failed")
       );
     } finally {
       setLoading(false);
+      setExplainLoading(false);
     }
   }
 
@@ -206,9 +205,13 @@ export default function PredictPage() {
 
   // compute chart-ready dataset from explainResult.top_features
   const chartData = useMemo(() => {
-    const top = explainResult?.top_features ?? [];
+    // Show ALL features from aggregated if available, falling back to top_features
+    const rawData = explainResult?.aggregated 
+      ? Object.entries(explainResult.aggregated).map(([feature, impact]) => ({ feature, impact }))
+      : (explainResult?.top_features ?? []);
+      
     // sort by absolute impact desc, put largest first
-    const sorted = [...top].sort(
+    const sorted = [...rawData].sort(
       (a, b) => Math.abs(b.impact) - Math.abs(a.impact)
     );
     const labels = sorted.map((t) => t.feature.replace(/_/g, " "));
@@ -661,7 +664,7 @@ export default function PredictPage() {
                     {explainResult?.top_features &&
                     explainResult.top_features.length > 0 ? (
                       <ul className="mt-3 space-y-2">
-                        {explainResult.top_features.slice(0, 4).map((t, i) => (
+                        {explainResult.top_features.map((t, i) => (
                           <li
                             key={i}
                             className="flex items-center justify-between"
@@ -709,7 +712,6 @@ export default function PredictPage() {
                       <div className="mt-3">
                         <dl className="grid gap-2">
                           {Object.entries(explainResult.aggregated)
-                            .slice(0, 6)
                             .map(([k, v]) => (
                               <div
                                 key={k}
@@ -733,17 +735,6 @@ export default function PredictPage() {
                               </div>
                             ))}
                         </dl>
-
-                        {/* show 'more' when there are additional keys */}
-                        {Object.keys(explainResult.aggregated).length > 6 && (
-                          <div
-                            className="mt-2 text-xs"
-                            style={{ color: "var(--muted-foreground)" }}
-                          >
-                            +{Object.keys(explainResult.aggregated).length - 6}{" "}
-                            more
-                          </div>
-                        )}
                       </div>
                     ) : (
                       <div

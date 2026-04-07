@@ -37,8 +37,8 @@ pipeline, metadata = load_pipeline_and_metadata(MODEL_PATH)
 feature_names = metadata.get("features", None)
 model_name = metadata.get("model_name", None)
 
-# Try to build SHAP explainer for the inner estimator (if tree model)
-shap_explainer, explainer_mode = build_shap_explainer_if_possible(pipeline)
+# Try to build SHAP explainer for the inner estimator (if tree or svm model)
+shap_explainer, explainer_mode = build_shap_explainer_if_possible(pipeline, metadata)
 
 @app.get("/health")
 def health():
@@ -51,7 +51,7 @@ def model_info():
     - cv_report -> models/cv_report.json
     - eval_metrics -> models/eval_results/metrics.json
     """
-    messages = []
+    certification_path = MODEL_DIR / "research_certification.json"
     cv_report_path = MODEL_DIR / "cv_report.json"
     eval_metrics_path = MODEL_DIR / "eval_results" / "metrics.json"
 
@@ -59,7 +59,14 @@ def model_info():
     eval_metrics = None
 
     try:
-        if cv_report_path.exists():
+        # 1. Prefer Unified Research Certification (Gold Room Protocol)
+        if certification_path.exists():
+            with open(certification_path, "r") as f:
+                cert = json.load(f)
+                cv_report = cert.get("cv_results")
+                # Add extra certification metadata
+                messages.append("Source: Unified Research Certification (Gold Room Protocol)")
+        elif cv_report_path.exists():
             with open(cv_report_path, "r") as f:
                 cv_report = json.load(f)
         else:
@@ -84,16 +91,24 @@ def model_info_ui():
     Simple HTML UI that renders models/cv_report.json and models/eval_results/metrics.json,
     and shows a Chart.js bar chart for per-model ROC-AUC (if available).
     """
+    certification_path = MODEL_DIR / "research_certification.json"
     cv_report_path = MODEL_DIR / "cv_report.json"
     eval_metrics_path = MODEL_DIR / "eval_results" / "metrics.json"
 
     # read files if available
     cv_report = None
     eval_metrics = None
+    cert_meta = None
     messages = []
 
     try:
-        if cv_report_path.exists():
+        # 1. Prefer Unified Research Certification
+        if certification_path.exists():
+            with open(certification_path, "r") as f:
+                cert = json.load(f)
+                cv_report = cert.get("cv_results")
+                cert_meta = {k: v for k, v in cert.items() if k != "cv_results"}
+        elif cv_report_path.exists():
             with open(cv_report_path, "r") as f:
                 cv_report = json.load(f)
         else:
@@ -173,6 +188,20 @@ def model_info_ui():
         <h1>Model Info <span class="badge">Heart Disease Prediction</span></h1>
         <p class="muted">This page shows CV results, evaluation metrics and a quick chart comparing models (ROC-AUC) for the trained models saved under <code>models/</code>.</p>
     """)
+
+    # Certification Banner
+    if cert_meta:
+        html_parts.append(f"""
+        <div class="box" style="border-left: 5px solid #0077cc; background: #f0f7ff;">
+          <h2 style="margin-top:0; color:#0055aa;">🛡️ Research-Grade Certification</h2>
+          <div class="flex-row" style="flex-wrap:wrap;">
+            <div class="col"><p class="small"><strong>Status:</strong> {cert_meta.get('status', 'N/A')}</p></div>
+            <div class="col"><p class="small"><strong>Isolation:</strong> {cert_meta.get('gold_samples', 'N/A')} Gold Samples (Strictly Unseen)</p></div>
+            <div class="col"><p class="small"><strong>Development:</strong> {cert_meta.get('dev_samples', 'N/A')} Samples (10-fold CV)</p></div>
+            <div class="col"><p class="small"><strong>Clinical Standard:</strong> {cert_meta.get('clinical_standard', 'N/A')}</p></div>
+          </div>
+        </div>
+        """)
 
     # messages
     if messages:
@@ -346,7 +375,7 @@ def explain_single(payload: SingleInput):
     For large models/explainers this may be slower — suitable for single-sample explanations.
     """
     try:
-        d = payload.dict()
+        d = payload.model_dump()
         d = normalize_input_dict(d)
         if feature_names:
             X = pd.DataFrame([d], columns=feature_names)
@@ -368,19 +397,32 @@ def explain_single(payload: SingleInput):
                 X_trans = pre.transform(X)
             else:
                 X_trans = X.values
-            # shap_explainer expects array-like transformed features for tree explainer
-            shap_vals = shap_explainer.shap_values(X_trans)
-            # Normalize shap_vals to a 2D array if shap returns list (class wise)
+            # shap_explainer expects array-like transformed features
+            if explainer_mode == "kernel":
+                shap_vals = shap_explainer.shap_values(X_trans, nsamples=100)
+            else:
+                shap_vals = shap_explainer.shap_values(X_trans)
+            # Normalize shap_vals to a 1D array for the current sample
             if isinstance(shap_vals, list):
                 # pick positive class (index 1) when available
-                if len(shap_vals) > 1:
-                    shap_arr = np.array(shap_vals[1])
-                else:
-                    shap_arr = np.array(shap_vals[0])
+                shap_arr = np.array(shap_vals[1] if len(shap_vals) > 1 else shap_vals[0])
             else:
                 shap_arr = np.array(shap_vals)
-            # pick first row
-            sv = shap_arr[0].tolist()
+
+            # Defensive squeeze and index to get 1D array for the first sample
+            if shap_arr.ndim > 2:
+                # e.g. (n_samples, n_features, n_classes) -> pick class 1 and first sample
+                if shap_arr.shape[-1] > 1:
+                    shap_arr = shap_arr[..., 1]
+                shap_arr = np.squeeze(shap_arr)
+            
+            if shap_arr.ndim == 2:
+                sv = shap_arr[0]
+            else:
+                sv = shap_arr # already 1D
+            
+            # Final cast to ensure we have a list of floats
+            sv = [float(x) for x in np.atleast_1d(sv)]
 
             # compute base value if available on explainer
             try:

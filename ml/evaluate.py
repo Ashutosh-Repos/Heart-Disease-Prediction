@@ -48,7 +48,9 @@ def compute_feature_importances(pipeline, X, y, output_dir: Path, feature_names)
             # use preprocessor to transform a single row to get output length
             Xt = pre.transform(X.head(1))
             n_feats = Xt.shape[1]
-            if len(feature_names) == n_feats:
+            if hasattr(pre, 'get_feature_names_out'):
+                names = list(pre.get_feature_names_out())
+            elif len(feature_names) == n_feats:
                 names = feature_names
             else:
                 names = [f"f_{i}" for i in range(n_feats)]
@@ -64,9 +66,15 @@ def compute_feature_importances(pipeline, X, y, output_dir: Path, feature_names)
     result = permutation_importance(pipeline, X, y, n_repeats=10, random_state=42, n_jobs=-1)
     perm_importances = result.importances_mean
     try:
-        Xt = pipeline.named_steps['preprocessor'].transform(X.head(1))
+        pre = pipeline.named_steps['preprocessor']
+        Xt = pre.transform(X.head(1))
         n_feats = Xt.shape[1]
-        names = [f"f_{i}" for i in range(n_feats)]
+        if hasattr(pre, 'get_feature_names_out'):
+            names = list(pre.get_feature_names_out())
+        elif len(feature_names) == n_feats:
+            names = feature_names
+        else:
+            names = [f"f_{i}" for i in range(n_feats)]
     except Exception:
         names = feature_names or [f"f_{i}" for i in range(len(perm_importances))]
     df_fi = pd.DataFrame(sorted(zip(names, perm_importances), key=lambda x: x[1], reverse=True),
@@ -100,8 +108,9 @@ def main(args):
         pipeline = data
         metadata = {}
 
-    # fit pipeline on training (so preprocessors have fitted params)
-    pipeline.fit(X_train, y_train)
+    # [Rigor] Pure Inference Protocol: Do NOT refit a pre-trained pipeline.
+    # This preserves the weights and patterns learned from the training source (e.g. Cardiovascular dataset).
+    # pipeline.fit(X_train, y_train) 
 
     preds = pipeline.predict(X_test)
     if hasattr(pipeline, 'predict_proba'):
@@ -144,8 +153,17 @@ def main(args):
         print("Failed to compute feature importances:", e)
         fi_df = None
 
+    def sanitize_json(data):
+        if isinstance(data, dict):
+            return {k: sanitize_json(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [sanitize_json(v) for v in data]
+        elif isinstance(data, float) and pd.isna(data):
+            return None
+        return data
+
     with open(out_dir / "evaluation_summary.json", "w") as f:
-        json.dump({
+        json.dump(sanitize_json({
             "metrics_file": str(out_dir / "metrics.json"),
             "classification_report_file": str(out_dir / "classification_report.json"),
             "confusion_matrix_file": str(out_dir / "confusion_matrix.png"),
@@ -153,7 +171,7 @@ def main(args):
             "pr_curve_file": str(out_dir / "pr_curve.png"),
             "feature_importances_file": str(out_dir / ("feature_importances.csv" if fi_df is not None else "feature_importances_permutation.csv")),
             "metadata": metadata
-        }, f, indent=2)
+        }), f, indent=2)
 
     print("Evaluation done. Artifacts saved to:", out_dir)
 

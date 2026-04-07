@@ -8,7 +8,7 @@ Saves:
   - models/explain/shap_values.npy         (raw shap values for dataset or subset)
   - models/explain/shap_summary.csv       (per-feature mean abs shap)
   - models/explain/sample_<i>_waterfall.png (per-sample waterfall)
-  - models/explain/sample_<i>_force.html    (per-sample force plot HTML)
+  (Force plot HTML generation disabled per user request)
 
 Usage (from project root):
   python -m ml.interpret \
@@ -29,11 +29,9 @@ Notes:
 import argparse
 from pathlib import Path
 import joblib
-import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -343,33 +341,8 @@ def main(args):
         except Exception as e:
             print(f"Could not create waterfall for sample {i}:", e)
 
-        # Force plot saved as HTML (works across shap versions)
-        try:
-            # Determine a base value scalar for force_plot
-            bv = base_value
-            # shap.force_plot expects a scalar base value for binary; try to coerce
-            try:
-                import numpy as _np
-                if isinstance(bv, (_np.ndarray, list)) and len(_np.atleast_1d(bv)) > 1:
-                    bv = float(_np.atleast_1d(bv)[1])  # prefer positive class
-                elif isinstance(bv, (_np.ndarray, list)):
-                    bv = float(_np.atleast_1d(bv)[0])
-            except Exception:
-                pass
-
-            # build force plot and save interactive HTML
-            f_html = out_dir / f"sample_{i}_force.html"
-            # For TreeExplainer the base value is typically explainer.expected_value
-            force_vis = shap.force_plot(bv, sv, X_trans[i], feature_names=transformed_feature_names, matplotlib=False)
-            try:
-                shap.save_html(str(f_html), force_vis)
-            except Exception:
-                # fallback: write repr
-                with open(f_html, "w") as fh:
-                    fh.write(str(force_vis))
-            print("Saved", f_html)
-        except Exception as e:
-            print(f"Could not create force plot for sample {i}:", e)
+        # Force plot HTML generation has been disabled per user request.
+        # (Only the waterfall .png plots will be saved for local explanations).
         
     print("Interpretation finished. Artifacts in:", out_dir)
 

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Google Docs Table</title>
+</head>
+<body style="font-family: 'Arial', sans-serif;">
+
+<p style="font-family: 'Times New Roman', serif; text-align: left; font-size: 11pt;">
+  <strong>Table 7</strong> Performance analysis of hyper-tuned machine learning algorithms over the Cardiovascular dataset
+</p>
+<table style="border-collapse: collapse; font-family: 'Times New Roman', serif; text-align: center; width: 100%; border: none; font-size: 11pt;">
+  <thead>
+    <tr>
+      <th rowspan="2" style="border-top: 1.5px solid black; padding: 6px 10px; text-align: left; vertical-align: bottom;">Classification<br>models</th>
+      <th colspan="4" style="border-top: 1.5px solid black; border-bottom: 1px solid black; padding: 6px 5px;">1-fold</th>
+      <th colspan="4" style="border-top: 1.5px solid black; border-bottom: 1px solid black; padding: 6px 5px;">2-fold</th>
+      <th colspan="4" style="border-top: 1.5px solid black; border-bottom: 1px solid black; padding: 6px 5px;">5-fold</th>
+      <th colspan="4" style="border-top: 1.5px solid black; border-bottom: 1px solid black; padding: 6px 5px;">10-fold</th>
+    </tr>
+    <tr>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Precision</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Recall</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">f1-score</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Accuracy</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Precision</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Recall</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">f1-score</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Accuracy</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Precision</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Recall</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">f1-score</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Accuracy</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Precision</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Recall</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">f1-score</th>
+      <th style="border-bottom: 1.5px solid black; padding: 4px 5px;">Accuracy</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px;">CatBoost</td>
+      <td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.5</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">98.8</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">100.0</td>
+      <td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">98.4</td>
+    </tr>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px;">SVM</td>
+      <td style="padding: 4px 5px;">0.94</td><td style="padding: 4px 5px;">0.96</td><td style="padding: 4px 5px;">0.95</td><td style="padding: 4px 5px;">93.8</td>
+      <td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.5</td>
+      <td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">98.8</td>
+      <td style="padding: 4px 5px;">0.97</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.97</td><td style="padding: 4px 5px;">96.8</td>
+    </tr>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px;">Random Forest</td>
+      <td style="padding: 4px 5px;">0.92</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.95</td><td style="padding: 4px 5px;">93.8</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">100.0</td>
+      <td style="padding: 4px 5px;">0.96</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.5</td>
+      <td style="padding: 4px 5px;">0.97</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.1</td>
+    </tr>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px;">XGBoost</td>
+      <td style="padding: 4px 5px;">0.90</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.94</td><td style="padding: 4px 5px;">92.5</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">98.8</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">100.0</td>
+      <td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.5</td>
+    </tr>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px;">LightGBM</td>
+      <td style="padding: 4px 5px;">0.96</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">97.5</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">100.0</td>
+      <td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">1.00</td><td style="padding: 4px 5px;">100.0</td>
+      <td style="padding: 4px 5px;">0.98</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">0.99</td><td style="padding: 4px 5px;">98.4</td>
+    </tr>
+    <tr>
+      <td style="text-align: left; padding: 4px 5px; border-bottom: 1.5px solid black;">KNN</td>
+      <td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.94</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.94</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.94</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">92.5</td>
+      <td style="padding: 4px 5px; border-bottom: 1.5px solid black;">1.00</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">1.00</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">1.00</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">100.0</td>
+      <td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.98</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.98</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.98</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">97.5</td>
+      <td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.97</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.96</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">0.96</td><td style="padding: 4px 5px; border-bottom: 1.5px solid black;">95.9</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

@@ -8,6 +8,8 @@ import warnings
 # api/utils.py (append)
 from collections import defaultdict
 import re
+import traceback
+import pandas as pd
 
 def load_pipeline_and_metadata(path: Path):
     if not path.exists():
@@ -58,9 +60,10 @@ def normalize_input_dict(d: dict) -> dict:
                     out['gender'] = g
     return out
 
-def build_shap_explainer_if_possible(pipeline) -> Tuple[Optional[object], str]:
+def build_shap_explainer_if_possible(pipeline, metadata=None) -> Tuple[Optional[object], str]:
     """
     If the inner estimator is tree-based create a shap TreeExplainer and return it.
+    If SVM, create a KernelExplainer using injected background_data from metadata.
     Returns (explainer_or_None, mode_string)
     """
     try:
@@ -71,8 +74,11 @@ def build_shap_explainer_if_possible(pipeline) -> Tuple[Optional[object], str]:
     model = None
     if hasattr(pipeline, "named_steps"):
         model = pipeline.named_steps.get("clf", None)
+        preprocessor = pipeline.named_steps.get("preprocessor", None)
     else:
         model = pipeline
+        preprocessor = None
+
     if model is None:
         return None, "no-model"
 
@@ -83,7 +89,28 @@ def build_shap_explainer_if_possible(pipeline) -> Tuple[Optional[object], str]:
             return explainer, "tree"
         except Exception:
             return None, "shap-error"
-    return None, "not-tree"
+
+    if "SVC" in model_name or "KNeighbors" in model_name:
+        try:
+            if metadata and "background_data" in metadata and metadata["background_data"]:
+                import pandas as pd
+                bg_df = pd.DataFrame(metadata["background_data"])
+                if preprocessor:
+                    # ensure we only take the training features to avoid transform errors
+                    bg_df = bg_df[metadata.get("features", bg_df.columns.tolist())]
+                    bg_trans = preprocessor.transform(bg_df)
+                else:
+                    bg_trans = bg_df.values
+                # We want shap.KernelExplainer to call predict_proba
+                explainer = shap.KernelExplainer(model.predict_proba, bg_trans)
+                return explainer, "kernel"
+            else:
+                return None, "no-background-data"
+        except Exception as e:
+            traceback.print_exc()
+            return None, "shap-kernel-error"
+
+    return None, "unsupported-model-type"
 
 def aggregate_contributions(contrib_dict, top_k=8):
     """
@@ -93,19 +120,18 @@ def aggregate_contributions(contrib_dict, top_k=8):
     """
     agg = defaultdict(float)
     for k, v in contrib_dict.items():
-        # 1. Strip transformer prefix
-        name = k
-        if k.startswith("num__"):
-            name = k.replace("num__", "")
-        elif k.startswith("cat__"):
-            name = k.replace("cat__", "")
-            # for cat features, strip the OHE tail (e.g. '_1.0') if not 'missing_indicator'
-            if "missing_indicator_" not in name:
-                m = re.match(r"(.*)_[^_]+$", name)
-                if m:
-                    name = m.group(1)
+        # 1. Strip transformer prefix (num__ or cat__)
+        name = re.sub(r'^(num__|cat__)', '', k)
+        
+        # 2. Handle OHE category tails (e.g. '_Asymptomatic' from 'cat__chestpain_Asymptomatic')
+        # We only strip the tail if it's NOT a missing_indicator flag
+        if "missing_indicator_" not in name:
+            # Matches any tail with a single underscore (OneHotEncoder default)
+            m = re.match(r"(.*)_[^_]+$", name)
+            if m:
+                name = m.group(1)
 
-        # 2. Strip missing indicator prefix and aggregate
+        # 3. Strip missing indicator prefix and aggregate
         orig = name.replace("missing_indicator_", "")
         agg[orig] += float(v)
 

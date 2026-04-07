@@ -85,6 +85,18 @@ def default_param_spaces():
             "clf__min_samples_leaf": randint(1, 10),
             "clf__max_features": ["sqrt", "log2", None],
             "clf__bootstrap": [True, False]
+        },
+        "svm": {
+            "smote": [None, SMOTE(random_state=RND)],
+            "clf__C": loguniform(1e-3, 100),
+            "clf__gamma": ["scale", "auto", 0.1, 0.01, 1e-3],
+            "clf__kernel": ["rbf", "poly", "sigmoid"]
+        },
+        "knn": {
+            "smote": [None, SMOTE(random_state=RND)],
+            "clf__n_neighbors": randint(3, 30),
+            "clf__weights": ["uniform", "distance"],
+            "clf__p": [1, 2]
         }
     }
     return spaces
@@ -116,7 +128,8 @@ def run_search_for_model(model_name, pipeline, param_dist, X, y, n_iter=30, cv=4
 
 from ml.utils import save_json, sanitize_for_json
 
-def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int = 1):
+def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, model_name: str, 
+                        numeric_feats: list, categorical_feats: list, top_k: int = 1):
     """
     Save best pipeline (refit) and top_k candidate pipelines (refit on full X/y).
     - rs is fitted RandomizedSearchCV with refit=True (it will already have best_estimator_ refit on full)
@@ -128,12 +141,13 @@ def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int
 
     # Save the best pipeline and its metadata
     metadata = {
-        "model_name": args.model if args and hasattr(args, 'model') else "unknown",
+        "model_name": model_name,
         "features": list(X.columns),
         "numeric_features": numeric_feats,
         "categorical_features": categorical_feats,
         "best_params": rs.best_params_,
         "best_cv_score": rs.best_score_,
+        "background_data": X.head(50).to_dict(orient="records"), # Inject for KernelExplainer support
         "clinical_standard": "UCI-1-indexed"
     }
     
@@ -173,20 +187,24 @@ def save_top_k_search(rs: RandomizedSearchCV, X, y, output_dir: Path, top_k: int
     print(f"Saved top-{top_k} artifacts into {output_dir}")
 
 
-def main(args):
-    data_path = Path(args.data_path)
-    if not data_path.exists():
-        raise FileNotFoundError(f"Data path not found: {data_path}")
+def main(args, X_train=None, y_train=None):
+    if X_train is not None and y_train is not None:
+        X, y = X_train, y_train
+        print(f"[Optimizer] Received injected Development set ({len(X)} samples).")
+    else:
+        data_path = Path(args.data_path)
+        if not data_path.exists():
+            raise FileNotFoundError(f"Data path not found: {data_path}")
 
-    df = pd.read_csv(data_path)
-    if args.id_column and args.id_column in df.columns:
-        df = df.drop(columns=[args.id_column])
+        df = pd.read_csv(data_path)
+        if args.id_column and args.id_column in df.columns:
+            df = df.drop(columns=[args.id_column])
 
-    if args.target not in df.columns:
-        raise ValueError(f"Target '{args.target}' not in dataset columns")
+        if args.target not in df.columns:
+            raise ValueError(f"Target '{args.target}' not in dataset columns")
 
-    X = df.drop(columns=[args.target])
-    y = df[args.target]
+        X = df.drop(columns=[args.target])
+        y = df[args.target]
 
     # 1. Use Centralized Research Schema
     from ml.schema import NUMERIC_FEATURES, CATEGORICAL_FEATURES, TARGET_COLUMN
@@ -207,7 +225,7 @@ def main(args):
 
     # Prepare models from model_config (we'll only tune a subset)
     all_models = model_config.get_models(random_state=args.random_state)
-    tune_models_keys = ["xgboost", "lightgbm", "catboost", "random_forest"]
+    tune_models_keys = ["xgboost", "lightgbm", "catboost", "random_forest", "svm", "knn"]
     param_spaces = default_param_spaces()
 
     out_base = Path(args.output_dir) / "hyperopt"
@@ -239,7 +257,7 @@ def main(args):
         rs = run_search_for_model(key, pipeline, ps, X, y, n_iter=args.n_iter, cv=args.cv, n_jobs=args.n_jobs, random_state=args.random_state)
 
         model_out_dir = out_base / key
-        save_top_k_search(rs, X, y, model_out_dir, top_k=args.top_k)
+        save_top_k_search(rs, X, y, model_out_dir, key, numeric_feats, categorical_feats, top_k=args.top_k)
 
         # save brief report
         report = {
@@ -257,7 +275,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-path", type=str, default="../data/Cardiovascular_Disease_Dataset.csv")
     parser.add_argument("--target", type=str, default="target")
     parser.add_argument("--id-column", type=str, default="patientid")
-    parser.add_argument("--output-dir", type=str, default="../models")
+    parser.add_argument("--output-dir", type=str, default="models")
     parser.add_argument("--n-iter", type=int, default=30, help="RandomizedSearchCV n_iter")
     parser.add_argument("--cv", type=int, default=10, help="CV folds")
     parser.add_argument("--n-jobs", type=int, default=-1)

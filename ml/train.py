@@ -75,9 +75,13 @@ def main(args):
 
     # Prepare models
     models = get_models(random_state=args.random_state)
+    
+    # Track whether each model should use SMOTE (default to the user's flag)
+    model_use_smote = {name: args.use_smote for name in models.keys()}
+
 
     if args.tune:
-        print("\n[Optimizer] Starting Deep Hyperparameter Search with SMOTE exploration...")
+        print(f"\n[Rigor] Splitting data for Nested Validation: {len(X_train_eval)} (Dev/Tune) vs {len(X_test_eval)} (Gold Isolation).")
         # Redirect specialized args for the search module
         search_args = argparse.Namespace(
             data_path=args.data_path,
@@ -90,7 +94,8 @@ def main(args):
             top_k=1,
             random_state=args.random_state
         )
-        hyperparam_search.main(search_args)
+        # Pass the isolated 80% training set to the search module to prevent leakage
+        hyperparam_search.main(search_args, X_train=X_train_eval, y_train=y_train_eval)
         print("[Optimizer] Search complete. Loading winners into pipeline...")
         
         # Load tuned parameters into the models dictionary
@@ -104,11 +109,14 @@ def main(args):
                 best_params = summary.get("best_params", {})
                 if best_params:
                     print(f"  - {name}: Applying optimized params: {best_params}")
+                    
+                    # Inherit the SMOTE decision directly from the optimizer 
+                    smote_val = best_params.get("smote")
+                    model_use_smote[name] = (smote_val is not None)
+
                     # Remove 'smote' from params as it's a pipeline step, not a clf param
                     clf_params = {k: v for k, v in best_params.items() if k != "smote"}
                     models[name].set_params(**clf_params)
-                    # If this specific model won with SMOTE, we can force it for this model
-                    # but for simplicity in this loop we'll follow the --use-smote or tune-specific logic
     
     cv_results = {}
     fold_metrics = {}
@@ -120,14 +128,15 @@ def main(args):
         print(f"\nRunning CV for: {name}")
         # Use ImbPipeline and apply SMOTE if requested
         steps = [('preprocessor', preprocessor)]
-        if args.use_smote:
+        if model_use_smote[name]:
             print(f"  - Applying SMOTE balancing to {name}...")
             steps.append(('smote', SMOTE(random_state=args.random_state)))
         steps.append(('clf', clf))
         
         pipeline = ImbPipeline(steps=steps)
         scoring = ['roc_auc', 'accuracy', 'precision', 'recall', 'f1']
-        summary, full_cv = run_cv(pipeline, X, y, cv=args.cv, scoring=scoring, n_jobs=args.n_jobs)
+        # Benchmarking is restricted to the 80% Development set to maintain independent validation
+        summary, full_cv = run_cv(pipeline, X_train_eval, y_train_eval, cv=args.cv, scoring=scoring, n_jobs=args.n_jobs)
         cv_results[name] = summary
         
         # Capture per-fold results
@@ -158,6 +167,9 @@ def main(args):
         print(f"Warning: Feature importance calculation failed: {e}")
     best_pipeline.fit(X, y)
 
+    # Save a small subset of the training data as background profiles for SHAP KernelExplainer
+    bg_data = X_train_eval.head(20).to_dict(orient="records") if len(X_train_eval) > 0 else []
+
     metadata = {
         "features": list(X.columns),
         "numeric_features": numeric_features,
@@ -165,7 +177,8 @@ def main(args):
         "target": args.target,
         "model_name": best_name,
         "cv_results": cv_results,
-        "clinical_standard": "UCI-1-indexed"
+        "clinical_standard": "UCI-1-indexed",
+        "background_data": bg_data
     }
 
     out_path = save_pipeline(best_pipeline, args.output_dir, filename=args.output_filename, metadata=metadata)
@@ -175,11 +188,26 @@ def main(args):
     output_dir = Path(args.output_dir)
     cv_report_path = output_dir / "cv_report.json"
     fold_metrics_path = output_dir / "fold_metrics.json"
+    certification_path = output_dir / "research_certification.json"
     
     from ml.utils import sanitize_for_json
     save_json(sanitize_for_json(cv_results), cv_report_path)
     save_json(sanitize_for_json(fold_metrics), fold_metrics_path)
-    print(f"Saved cv_report.json and fold_metrics.json")
+    
+    # [NEW] Unified Research Certification
+    # This acts as the single source of truth for the API and Dashboard
+    certification = {
+        "status": "Certified",
+        "nested_validation": True,
+        "dev_samples": len(X_train_eval),
+        "gold_samples": len(X_test_eval),
+        "best_model": best_name,
+        "cv_results": cv_results,
+        "clinical_standard": "UCI-1-indexed",
+        "random_state": args.random_state
+    }
+    save_json(sanitize_for_json(certification), certification_path)
+    print(f"Saved Unified Research Certification to: {certification_path}")
 
     # [NEW] Generate visualizations automatically
     try:
@@ -197,11 +225,11 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="../data/Cardiovascular_Disease_Dataset.csv")
+    parser.add_argument("--data-path", type=str, default="data/Cardiovascular_Disease_Dataset.csv")
     parser.add_argument("--target", type=str, default="target")
     parser.add_argument("--id-column", type=str, default="patientid", help="Identifier column to drop if present")
     parser.add_argument("--numeric-hints", type=list, default=None, help="Optional list of numeric column name hints")
-    parser.add_argument("--output-dir", type=str, default="../models")
+    parser.add_argument("--output-dir", type=str, default="models")
     parser.add_argument("--output-filename", type=str, default="best_model_pipeline.joblib")
     parser.add_argument("--cv", type=int, default=10, help="CV folds")
     parser.add_argument("--random-state", type=int, default=42)

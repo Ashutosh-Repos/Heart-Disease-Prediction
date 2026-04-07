@@ -25,6 +25,12 @@ def build_preprocessor(numeric_features: List[str], categorical_features: List[s
         ('num', numeric_transformer, numeric_features),
         ('cat', categorical_transformer, categorical_features)
     ])
+    
+    # [Rigor] Fix: Preserve feature names throughout the pipeline for cleaner medical interpretability
+    try:
+        preprocessor.set_output(transform="pandas")
+    except Exception:
+        pass
 
     return preprocessor
 

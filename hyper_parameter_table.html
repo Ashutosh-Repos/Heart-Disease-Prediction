@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Times New Roman', serif;
+}
+th, td {
+  border: 1px solid black;
+  padding: 8px;
+  text-align: center;
+}
+th {
+  background-color: #f2f2f2;
+}
+.model-col {
+  font-weight: bold;
+}
+.param-col {
+  text-align: left;
+}
+</style>
+</head>
+<body>
+
+<h3>Table 5.1 Hyperparameter selection</h3>
+<table style="max-width: 60rem; border-collapse: collapse; font-family: 'Times New Roman', serif; text-align: center; width: 100%; border: none; font-size: 11pt;">
+  <tr>
+    <th>Model</th>
+    <th>Hyperparameter</th>
+    <th>Parameter selection</th>
+    <th>Best hyper-parameter</th>
+  </tr>
+  <!-- SVM -->
+  <tr>
+    <td rowspan="4" class="model-col">SVM</td>
+    <td class="param-col">kernel</td>
+    <td>["rbf", "poly", "sigmoid"]</td>
+    <td>rbf</td>
+  </tr>
+  <tr>
+    <td class="param-col">C</td>
+    <td>[0.001, 100]</td>
+    <td>0.916</td>
+  </tr>
+  <tr>
+    <td class="param-col">Gamma</td>
+    <td>["scale", "auto", 0.1, 0.01, 1e-3]</td>
+    <td>0.1</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>None</td>
+  </tr>
+  <!-- KNN -->
+  <tr>
+    <td rowspan="4" class="model-col">KNN</td>
+    <td class="param-col">n_neighbors</td>
+    <td>[3, 30]</td>
+    <td>13</td>
+  </tr>
+  <tr>
+    <td class="param-col">p (distance logic)</td>
+    <td>[1, 2]</td>
+    <td>1</td>
+  </tr>
+  <tr>
+    <td class="param-col">weight</td>
+    <td>["uniform", "distance"]</td>
+    <td>distance</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>None</td>
+  </tr>
+  <!-- RF -->
+  <tr>
+    <td rowspan="7" class="model-col">RF</td>
+    <td class="param-col">bootstrap</td>
+    <td>[True, False]</td>
+    <td>False</td>
+  </tr>
+  <tr>
+    <td class="param-col">max_depth</td>
+    <td>[5, 40]</td>
+    <td>7</td>
+  </tr>
+  <tr>
+    <td class="param-col">max_features</td>
+    <td>["sqrt", "log2", None]</td>
+    <td>sqrt</td>
+  </tr>
+  <tr>
+    <td class="param-col">min_samples_leaf</td>
+    <td>[1, 10]</td>
+    <td>3</td>
+  </tr>
+  <tr>
+    <td class="param-col">min_samples_split</td>
+    <td>[2, 20]</td>
+    <td>8</td>
+  </tr>
+  <tr>
+    <td class="param-col">n_estimators</td>
+    <td>[100, 800]</td>
+    <td>120</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>None</td>
+  </tr>
+  <!-- XGBoost -->
+  <tr>
+    <td rowspan="10" class="model-col">XGBoost</td>
+    <td class="param-col">max_depth</td>
+    <td>[3, 15]</td>
+    <td>10</td>
+  </tr>
+  <tr>
+    <td class="param-col">n_estimators</td>
+    <td>[100, 700]</td>
+    <td>437</td>
+  </tr>
+  <tr>
+    <td class="param-col">learning_rate</td>
+    <td>[0.005, 0.3]</td>
+    <td>0.161</td>
+  </tr>
+  <tr>
+    <td class="param-col">subsample</td>
+    <td>[0.5, 1.0]</td>
+    <td>0.983</td>
+  </tr>
+  <tr>
+    <td class="param-col">max_features</td>
+    <td>[auto, sqrt]</td>
+    <td>auto</td>
+  </tr>
+  <tr>
+    <td class="param-col">colsample_bytree</td>
+    <td>[0.4, 1.0]</td>
+    <td>0.596</td>
+  </tr>
+  <tr>
+    <td class="param-col">gamma</td>
+    <td>[0, 5]</td>
+    <td>2.852</td>
+  </tr>
+  <tr>
+    <td class="param-col">reg_alpha</td>
+    <td>[0.001, 10.0]</td>
+    <td>0.144</td>
+  </tr>
+  <tr>
+    <td class="param-col">reg_lambda</td>
+    <td>[0.001, 10.0]</td>
+    <td>0.222</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>SMOTE</td>
+  </tr>
+  <!-- LightGBM -->
+  <tr>
+    <td rowspan="8" class="model-col">LightGBM</td>
+    <td class="param-col">n_estimators</td>
+    <td>[100, 700]</td>
+    <td>443</td>
+  </tr>
+  <tr>
+    <td class="param-col">num_leaves</td>
+    <td>[20, 200]</td>
+    <td>177</td>
+  </tr>
+  <tr>
+    <td class="param-col">max_depth</td>
+    <td>[-1, 15]</td>
+    <td>4</td>
+  </tr>
+  <tr>
+    <td class="param-col">learning_rate</td>
+    <td>[0.005, 0.3]</td>
+    <td>0.217</td>
+  </tr>
+  <tr>
+    <td class="param-col">feature_fraction</td>
+    <td>[0.4, 1.0]</td>
+    <td>0.761</td>
+  </tr>
+  <tr>
+    <td class="param-col">bagging_fraction</td>
+    <td>[0.4, 1.0]</td>
+    <td>0.570</td>
+  </tr>
+  <tr>
+    <td class="param-col">min_child_samples</td>
+    <td>[5, 50]</td>
+    <td>6</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>SMOTE</td>
+  </tr>
+  <!-- CatBoost -->
+  <tr>
+    <td rowspan="7" class="model-col">CatBoost</td>
+    <td class="param-col">iterations</td>
+    <td>[200, 800]</td>
+    <td>470</td>
+  </tr>
+  <tr>
+    <td class="param-col">depth</td>
+    <td>[4, 10]</td>
+    <td>8</td>
+  </tr>
+  <tr>
+    <td class="param-col">learning_rate</td>
+    <td>[0.01, 0.2]</td>
+    <td>0.130</td>
+  </tr>
+  <tr>
+    <td class="param-col">l2_leaf_reg</td>
+    <td>[1, 20]</td>
+    <td>15.640</td>
+  </tr>
+  <tr>
+    <td class="param-col">random_strength</td>
+    <td>[0, 10]</td>
+    <td>1.560</td>
+  </tr>
+  <tr>
+    <td class="param-col">bagging_temperature</td>
+    <td>[0, 1]</td>
+    <td>0.375</td>
+  </tr>
+  <tr>
+    <td class="param-col">SMOTE balancing</td>
+    <td>[None, SMOTE]</td>
+    <td>None</td>
+  </tr>
+</table>
+
+</body>
+</html>
+
