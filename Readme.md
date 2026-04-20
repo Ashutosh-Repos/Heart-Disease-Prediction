@@ -278,11 +278,14 @@ The system automatically detects if an offset is needed.
 
 Build the Gold Standard UCI dataset from 4 global centers.
 
+*Why this step is required:* The original UCI heart disease data from Kaggle is provided in raw `.data` files rather than CSV. The `ml.combine_uci_data` script aggregates the four center‑specific `.data` files located in `data/heart+disease 2` and converts them into a single standardized CSV (`data/UCI_Heart_Disease_Combined.csv`) for downstream preprocessing and model training.
+
 ```bash
 python -m ml.combine_uci_data \
   --dir "data/heart+disease 2" \
   --output "data/UCI_Heart_Disease_Combined.csv"
 ```
+
 
 ### 🧠 Phase B: Deep Championship Training (Dataset Agnostic)
 
